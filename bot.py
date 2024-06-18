@@ -2,6 +2,7 @@ import discord
 import logging
 import requests
 import asyncio
+import pymongo
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -10,10 +11,12 @@ token = ""
 
 client = discord.Client(intents=intents)
 
-# handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+# Connecting MongoDB to the code
+connection_string = ""
+m_client = pymongo.MongoClient(connection_string)
 
-# # Assume client refers to a discord.Client subclass...
-# client.run(token, log_handler=handler, log_level=logging.DEBUG)
+# Access database
+db = m_client["Cluster0"]
 
 api_key = ""
 
@@ -111,10 +114,25 @@ async def on_message(message):
 
             if response.status_code == 200:
                 await message.channel.send("Account is valid.")
+                print(response.json())
+                # Extract relevant data from the API response
+                api_data = response.json()
                 user_data[message.author.id] = {
-                    "account_name": userAccountName.content,
-                    "tag_line": userTagLine.content
+                    "puuid": api_data["puuid"],
+                    "account_name": api_data["gameName"],
+                    "tag_line": api_data["tagLine"]
                 }
+                user_info = db["user-data"]
+
+                # Convert keys to strings
+                user_data_str_keys = {str(key): value for key, value in user_data.items()}
+
+                try:
+                    user_info.insert_one(user_data_str_keys)
+                    await message.channel.send("User data successfully stored in the database.")
+                except Exception as e:
+                    await message.channel.send(f"An error occurred while storing user data: {e}")
+
             else:
                 await message.channel.send("Account is invalid.")
                 print(f"API Call failed: {response.status_code} [{response.text}]")
@@ -132,18 +150,5 @@ async def on_message(message):
             await message.channel.send(f"Your Riot account is {info['account_name']}{info['tag_line']}")
         else:
             await message.channel.send("No information found for your account. Please use $start command to link your Riot account to your Discord account.")
-
-# @client.event
-# async def on_message(message):
-#     if message.author == client.user:
-#         return
-
-#     if message.content.startswith("$profile"):
-#         user_id = message.author.id
-#         if user_id in user_data:
-#             info = user_data[user_id]
-#             await message.channel.send(f"Your Riot account is {info['account_name']}{info['tagline']}")
-#         else:
-#             await message.channel.send("No information found for your account. Please use $start command to link your Riot account to your Discord account.")
 
 client.run(token)
