@@ -3,22 +3,23 @@ import logging
 import requests
 import asyncio
 import pymongo
+from config import DISCORD_TOKEN, MONGO_CONNECTION_STRING, RIOT_API_KEY
 
+# Discord Client Initialization
 intents = discord.Intents.default()
 intents.message_content = True
 
-token = ""
-
+token = DISCORD_TOKEN
 client = discord.Client(intents=intents)
 
-# Connecting MongoDB to the code
-connection_string = ""
+# MongoDB Connection
+connection_string = MONGO_CONNECTION_STRING
 m_client = pymongo.MongoClient(connection_string)
 
 # Access database
 db = m_client["Cluster0"]
 
-api_key = ""
+api_key = RIOT_API_KEY
 
 user_data = {}
 
@@ -59,6 +60,28 @@ async def on_message(message):
         await message.channel.send('Hello!!')
 
     if message.content.startswith('$start'):
+        user_id = message.author.id
+        user_info = db["user-data"]
+        user_record = user_info.find_one({"_id": str(user_id)})
+
+        print(user_record)
+        if user_record:
+            info = user_record[str(user_id)]
+            confirm_view_replace = ConfirmView(message.author)
+            await message.channel.send(f"You already have an account linked: {info['account_name']}{info['tag_line']}. Would you like to link a different account? (Warning: This will override your current data.)", view=confirm_view_replace)
+            await confirm_view_replace.wait()
+
+            if confirm_view_replace.value is None:
+                await message.channel.send("Confirmation timed out. Please try again.")
+                return
+            elif confirm_view_replace.value:
+                user_info.delete_one({"_id": str(user_id)})
+                del user_data [user_id]
+                await message.channel.send("Your account is now delinked. You can now use the $start command again to link a new Riot account.")
+            else:
+                await message.channel.send("Your data has not been reset.")
+                return
+
         await message.channel.send('Hello, to begin, what is your game name? Do not enter your Riot tag yet. (Ex: Doublelift)')
 
         account_api_url = "https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/"
@@ -117,18 +140,19 @@ async def on_message(message):
                 print(response.json())
                 # Extract relevant data from the API response
                 api_data = response.json()
-                user_data[message.author.id] = {
+                user_data = {
+                    "_id": str(message.author.id),
                     "puuid": api_data["puuid"],
                     "account_name": api_data["gameName"],
                     "tag_line": api_data["tagLine"]
                 }
                 user_info = db["user-data"]
 
-                # Convert keys to strings
-                user_data_str_keys = {str(key): value for key, value in user_data.items()}
+                # # Convert keys to strings
+                # user_data_str_keys = {str(key): value for key, value in user_data.items()}
 
                 try:
-                    user_info.insert_one(user_data_str_keys)
+                    user_info.insert_one(user_data)
                     await message.channel.send("User data successfully stored in the database.")
                 except Exception as e:
                     await message.channel.send(f"An error occurred while storing user data: {e}")
