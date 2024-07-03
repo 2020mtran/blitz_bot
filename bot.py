@@ -66,7 +66,7 @@ async def on_message(message):
 
         print(user_record)
         if user_record:
-            info = user_record[str(user_id)]
+            info = user_record
             confirm_view_replace = ConfirmView(message.author)
             await message.channel.send(f"You already have an account linked: {info['account_name']}{info['tag_line']}. Would you like to link a different account? (Warning: This will override your current data.)", view=confirm_view_replace)
             await confirm_view_replace.wait()
