@@ -180,10 +180,39 @@ async def on_message(message):
 
             if response.status_code == 200:
                 summoner_data = response.json()
+
+                # Add summoner's level, summoner id, and account id to the database, & update if exists already
+                user_info.update_one(
+                    {"_id": str(user_id)},
+                    {"$set": {
+                        "summoner_level": summoner_data["summonerLevel"],
+                        "summoner_id": summoner_data["id"],
+                        "account_id": summoner_data["accountId"]
+                    }}
+                )
+
                 await message.channel.send(
                     f"Riot Account: {info['account_name']} #{info['tag_line']}\n"
-                    f"Summoner Level: {summoner_data['summonerLevel']}"
+                    f"Summoner Level: {summoner_data['summonerLevel']}\n"
                 )
+                
+                summoner_id = info["summoner_id"]
+                summoner_rank_api_url = f"https://na1.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}?api_key={RIOT_API_KEY}"
+                SR_response = requests.get(summoner_rank_api_url)
+
+                if SR_response.status_code == 200:
+                    summoner_rank_data = SR_response.json()
+
+                    if summoner_rank_data:
+                        solo_duo_rank = next((entry for entry in summoner_rank_data if entry['queueType'] == 'RANKED_SOLO_5x5'), None)
+                        if solo_duo_rank:
+                            await message.channel.send(
+                                f"Solo/Duo Rank: {solo_duo_rank['tier']} {solo_duo_rank['rank']} {solo_duo_rank['leaguePoints']} LP"
+                            )
+                    else:
+                        await message.channel.send("No ranked solo/duo information found.")
+                else:
+                    await message.channel.send("No ranked information found.")
             else:
                 await message.channel.send("Failed to fetch summoner data from Riot API.")
         else:
