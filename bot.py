@@ -169,10 +169,25 @@ async def on_message(message):
     
     if message.content.startswith("$profile"):
         user_id = message.author.id
-        if user_id in user_data:
-            info = user_data[user_id]
-            await message.channel.send(f"Your Riot account is {info['account_name']}{info['tag_line']}")
+        user_info = db["user-data"]
+        user_record = user_info.find_one({"_id": str(user_id)})
+        
+        if user_record:
+            info = user_record
+            puuid = info["puuid"]
+            summoner_info_api_url = f"https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}?api_key={RIOT_API_KEY}"
+            response = requests.get(summoner_info_api_url)
+
+            if response.status_code == 200:
+                summoner_data = response.json()
+                await message.channel.send(
+                    f"Riot Account: {info['account_name']} #{info['tag_line']}\n"
+                    f"Summoner Level: {summoner_data['summonerLevel']}"
+                )
+            else:
+                await message.channel.send("Failed to fetch summoner data from Riot API.")
         else:
             await message.channel.send("No information found for your account. Please use $start command to link your Riot account to your Discord account.")
+
 
 client.run(token)
