@@ -23,6 +23,54 @@ api_key = RIOT_API_KEY
 
 user_data = {}
 
+async def display_leaderboard(message):
+    user_info = db['user-data']
+    all_users = user_info.find({}) # Fetch all the documents
+
+
+    rank_order = [
+        "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"
+    ]
+    division_order = ["IV", "III", "II", "I"]
+
+    users_data = []
+    for user in all_users:
+        print(f"User found: {user}")  # Debug: Print each user document
+        if "rank" in user:
+            print(f"User rank: {user['rank']}")  # Debug: Print rank before split
+            rank_info = user["rank"].split()
+            print(f"Rank info: {rank_info}")  # Debug: Print rank info after split
+        if len(rank_info) == 4:  # Ensure correct split format
+            tier = rank_info[0]
+            division = rank_info[1]
+            lp = int(rank_info[2])
+            users_data.append({
+            "account_name": user["account_name"],
+            "tier": tier,
+            "division": division,
+            "lp": lp,
+            "rank": user["rank"]
+        })
+        else:
+            print(f"Unexpected rank format: {user['rank']}")  # Debug: Print unexpected rank format
+    
+    print(f"Users with rank data: {users_data}")  # Debug: Print users with rank
+
+    sorted_users = sorted(users_data, key=lambda x: (
+        rank_order.index(x["tier"]),
+        -division_order.index(x["division"]),
+        -x["lp"]
+    ))
+    print(f"Sorted users: {sorted_users}")  # Debug: Print sorted users
+
+    leaderboard_message = "Leaderboard:\n"
+    for idx, user_data in enumerate(sorted_users, start=1):
+        leaderboard_message += f"{idx}. {user_data['account_name']} - Rank: {user_data['rank']}\n"
+
+    print(f"Leaderboard message: {leaderboard_message}")  # Debug: Print leaderboard message
+
+    await message.channel.send(leaderboard_message)
+
 class ConfirmView(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=30) # From the discord.ui.view super class
@@ -196,7 +244,7 @@ async def on_message(message):
                     f"Summoner Level: {summoner_data['summonerLevel']}\n"
                 )
                 
-                summoner_id = info["summoner_id"]
+                summoner_id = summoner_data["id"]
                 summoner_rank_api_url = f"https://na1.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}?api_key={RIOT_API_KEY}"
                 SR_response = requests.get(summoner_rank_api_url)
 
@@ -206,6 +254,12 @@ async def on_message(message):
                     if summoner_rank_data:
                         solo_duo_rank = next((entry for entry in summoner_rank_data if entry['queueType'] == 'RANKED_SOLO_5x5'), None)
                         if solo_duo_rank:
+                            user_info.update_one(
+                                {"_id": str(user_id)},
+                                {"$set": {
+                                    "rank": f"{solo_duo_rank['tier']} {solo_duo_rank['rank']} {solo_duo_rank['leaguePoints']} LP"
+                                }}
+                )
                             await message.channel.send(
                                 f"Solo/Duo Rank: {solo_duo_rank['tier']} {solo_duo_rank['rank']} {solo_duo_rank['leaguePoints']} LP"
                             )
@@ -218,5 +272,7 @@ async def on_message(message):
         else:
             await message.channel.send("No information found for your account. Please use $start command to link your Riot account to your Discord account.")
 
+    if message.content.startswith('$leaderboard'):
+        await display_leaderboard(message)  # Call the function to display leaderboard
 
 client.run(token)
