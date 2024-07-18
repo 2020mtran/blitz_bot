@@ -40,19 +40,19 @@ async def display_leaderboard(message):
             print(f"User rank: {user['rank']}")  # Debug: Print rank before split
             rank_info = user["rank"].split()
             print(f"Rank info: {rank_info}")  # Debug: Print rank info after split
-        if len(rank_info) == 4:  # Ensure correct split format
-            tier = rank_info[0]
-            division = rank_info[1]
-            lp = int(rank_info[2])
-            users_data.append({
-            "account_name": user["account_name"],
-            "tier": tier,
-            "division": division,
-            "lp": lp,
-            "rank": user["rank"]
-        })
-        else:
-            print(f"Unexpected rank format: {user['rank']}")  # Debug: Print unexpected rank format
+            if len(rank_info) == 4:  # Ensure correct split format
+                tier = rank_info[0]
+                division = rank_info[1]
+                lp = int(rank_info[2])
+                users_data.append({
+                "account_name": user["account_name"],
+                "tier": tier,
+                "division": division,
+                "lp": lp,
+                "rank": user["rank"]
+            })
+            else:
+                print(f"Unexpected rank format: {user['rank']}")  # Debug: Print unexpected rank format
     
     print(f"Users with rank data: {users_data}")  # Debug: Print users with rank
 
